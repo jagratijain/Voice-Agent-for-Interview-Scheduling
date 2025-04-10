@@ -8,7 +8,7 @@ const {
   deleteJob
 } = require('../controllers/jobController');
 
-router.get('/', getJobs);         // ✅ ONLY ONE get route
+router.get('/', getJobs);         
 router.get('/:id', getJobById);
 router.post('/', createJob);
 router.put('/:id', updateJob);
