@@ -1,5 +1,5 @@
 import Navbar from "./components/Navbar";
-import AppRoutes from "./AppRoutes";
+import AppRoutes from "./routes/AppRoutes";
 
 const App = () => {
   return (

@@ -27,15 +27,24 @@ exports.createCandidate = (req, res) => {
     expected_ctc,
     notice_period,
     experience,
+    email,
+    location,
     booking_status = 'pending',
   } = req.body;
 
   db.query(
-    'INSERT INTO candidates (name, phone, current_ctc, expected_ctc, notice_period, experience, booking_status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [name, phone, current_ctc, expected_ctc, notice_period, experience, booking_status],
+    `INSERT INTO candidates 
+      (name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status],
     (err, result) => {
       if (err) return res.status(500).json({ error: err });
-      res.status(201).json({ id: result.insertId, name, phone, current_ctc, expected_ctc, notice_period, experience, booking_status });
+
+      // 👇 Fetch full row including created_at after insert
+      db.query('SELECT * FROM candidates WHERE id = ?', [result.insertId], (err2, rows) => {
+        if (err2) return res.status(500).json({ error: err2 });
+        res.status(201).json(rows[0]);
+      });
     }
   );
 };
@@ -50,27 +59,40 @@ exports.updateCandidate = (req, res) => {
     expected_ctc,
     notice_period,
     experience,
+    email,
+    location,
     booking_status,
   } = req.body;
 
   db.query(
-    'UPDATE candidates SET name = ?, phone = ?, current_ctc = ?, expected_ctc = ?, notice_period = ?, experience = ?, booking_status = ? WHERE id = ?',
-    [name, phone, current_ctc, expected_ctc, notice_period, experience, booking_status, id],
+    `UPDATE candidates 
+     SET name = ?, phone = ?, current_ctc = ?, expected_ctc = ?, notice_period = ?, experience = ?, email = ?, location = ?, booking_status = ? 
+     WHERE id = ?`,
+    [name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status, id],
     (err) => {
       if (err) return res.status(500).json({ error: err });
-      res.json({ id, name, phone, current_ctc, expected_ctc, notice_period, experience, booking_status });
+      res.json({
+        id,
+        name,
+        phone,
+        current_ctc,
+        expected_ctc,
+        notice_period,
+        experience,
+        email,
+        location,
+        booking_status
+      });
     }
   );
 };
 
 // Delete a candidate
 exports.deleteCandidate = (req, res) => {
-    const { id } = req.params;
-    const sql = 'DELETE FROM candidates WHERE id = ?';
-    db.query(sql, [id], (err, result) => {
-      if (err) return res.status(500).json({ error: err });
-      if (result.affectedRows === 0) return res.status(404).json({ message: 'Candidate not found' });
-      res.json({ message: 'Candidate deleted successfully' });
-    });
-  };
-  
+  const { id } = req.params;
+  db.query('DELETE FROM candidates WHERE id = ?', [id], (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'Candidate not found' });
+    res.json({ message: 'Candidate deleted successfully' });
+  });
+};

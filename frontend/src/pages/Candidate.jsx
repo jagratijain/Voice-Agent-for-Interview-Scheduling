@@ -9,30 +9,40 @@ const Candidate = () => {
     current_ctc: "",
     expected_ctc: "",
     notice_period: "",
-    experience: ""
+    experience: "",
+    email: "",
+    location: ""
   });
 
-  // Fetch candidates on component mount
+  // Fetch all candidates
+  const fetchCandidates = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/candidates");
+      setCandidates(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/candidates")
-      .then((res) => setCandidates(res.data))
-      .catch(console.error);
+    fetchCandidates();
   }, []);
 
-  // Form submission handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const res = await axios.post("http://localhost:5000/api/candidates", formData);
-      setCandidates([...candidates, res.data]); // Add new candidate to list
+      // Add new candidate with full object including created_at
+      setCandidates([...candidates, res.data]);
       setFormData({
         name: "",
         phone: "",
         current_ctc: "",
         expected_ctc: "",
         notice_period: "",
-        experience: ""
+        experience: "",
+        email: "",
+        location: ""
       });
     } catch (err) {
       console.error(err);
@@ -45,10 +55,10 @@ const Candidate = () => {
 
       {/* Candidate Form */}
       <form onSubmit={handleSubmit} className="space-y-3 mb-6 max-w-md">
-        {["name", "phone", "current_ctc", "expected_ctc", "notice_period", "experience"].map((field) => (
+        {["name", "phone", "email", "location", "current_ctc", "expected_ctc", "notice_period", "experience"].map((field) => (
           <input
             key={field}
-            type="text"
+            type={field === "email" ? "email" : "text"}
             placeholder={field.replace(/_/g, " ")}
             value={formData[field]}
             onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
@@ -64,9 +74,17 @@ const Candidate = () => {
         {candidates.map((c) => (
           <li key={c.id} className="border p-3 rounded shadow-sm">
             <strong>{c.name}</strong> ({c.phone})<br />
-            <span className="text-sm">
+            <span className="text-sm block text-gray-700">
+              Email: {c.email} | Location: {c.location}
+            </span>
+            <span className="text-sm block text-gray-700">
               CTC: {c.current_ctc}/{c.expected_ctc} | Notice: {c.notice_period} | Exp: {c.experience}
             </span>
+            {c.created_at && (
+              <span className="text-xs text-gray-500">
+                Added on: {new Date(c.created_at).toLocaleString()}
+              </span>
+            )}
           </li>
         ))}
       </ul>

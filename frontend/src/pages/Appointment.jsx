@@ -35,7 +35,17 @@ const Appointment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await api.post('/appointments', form);
+    const date = new Date(form.date_time);
+    const mysqlDatetime = date.toISOString().slice(0, 19).replace('T', ' ');
+    console.log(mysqlDatetime);
+
+    const updatedForm = {
+      ...form,
+      date_time: mysqlDatetime,
+    };
+  
+    console.log(updatedForm);
+    await api.post('/appointments', updatedForm);
     setForm({ candidate_id: '', job_id: '', date_time: '', status: 'Scheduled' });
     fetchAppointments();
   };
