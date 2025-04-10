@@ -1,46 +1,92 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useState } from 'react';
+import api from '../services/api';
 
 const Conversation = () => {
   const [conversations, setConversations] = useState([]);
-  const [formData, setFormData] = useState({
-    candidate_id: "",
-    transcript: "",
-    entities_extracted: ""
-  });
+  const [transcript, setTranscript] = useState('');
+  const [listening, setListening] = useState(false);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/conversations")
-      .then((res) => setConversations(res.data))
-      .catch(console.error);
+    fetchConversations();
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const fetchConversations = async () => {
+    const res = await api.get('/conversations');
+    setConversations(res.data);
+  };
+
+  // Web Speech API
+  const handleStartListening = () => {
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setListening(true);
+
+    recognition.onresult = (event) => {
+      const speechResult = event.results[0][0].transcript;
+      setTranscript(speechResult);
+      saveTranscript(speechResult);
+      setListening(false);
+    };
+
+    recognition.onerror = (err) => {
+      console.error(err);
+      setListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const saveTranscript = async (text) => {
     try {
-      const res = await axios.post("http://localhost:5000/api/conversations", formData);
-      setConversations([...conversations, res.data]);
-      setFormData({ candidate_id: "", transcript: "", entities_extracted: "" });
+      await api.post('/conversations', {
+        candidate_id: 1, // hardcoded for now or use dropdown
+        transcript: text,
+        entities_extracted: JSON.stringify({ notice_period: extractNoticePeriod(text) })
+      });
+      fetchConversations();
     } catch (err) {
       console.error(err);
     }
   };
 
+  const speak = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    speechSynthesis.speak(utterance);
+  };
+
+  const extractNoticePeriod = (text) => {
+    const match = text.match(/\b(\d+)\s*(weeks?|months?|days?)\b/i);
+    return match ? match[0] : 'Not found';
+  };
+
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold mb-4">Conversations</h2>
-      <form onSubmit={handleSubmit} className="space-y-3 mb-6">
-        <input type="text" placeholder="Candidate ID" value={formData.candidate_id} onChange={(e) => setFormData({ ...formData, candidate_id: e.target.value })} className="border px-3 py-1 rounded w-full" required />
-        <textarea placeholder="Transcript" value={formData.transcript} onChange={(e) => setFormData({ ...formData, transcript: e.target.value })} className="border px-3 py-1 rounded w-full" required />
-        <input type="text" placeholder="Entities Extracted" value={formData.entities_extracted} onChange={(e) => setFormData({ ...formData, entities_extracted: e.target.value })} className="border px-3 py-1 rounded w-full" />
-        <button className="bg-purple-600 text-white px-4 py-2 rounded">Save Conversation</button>
-      </form>
+      <h2 className="text-xl font-bold mb-4">Conversation Simulator</h2>
+
+      <div className="space-y-4 mb-6">
+        <button onClick={() => speak('Hello! What is your current notice period?')} className="bg-indigo-600 text-white px-4 py-2 rounded">
+          Ask Notice Period
+        </button>
+
+        <button onClick={handleStartListening} className="bg-green-600 text-white px-4 py-2 rounded">
+          {listening ? 'Listening...' : 'Start Listening'}
+        </button>
+
+        {transcript && (
+          <p className="border p-2 rounded bg-gray-50">
+            <strong>You said:</strong> {transcript}
+          </p>
+        )}
+      </div>
+
+      <h3 className="text-lg font-semibold mb-2">Conversation Logs</h3>
       <ul className="space-y-2">
         {conversations.map((c) => (
           <li key={c.id} className="border p-2 rounded">
-            <p><strong>Candidate ID:</strong> {c.candidate_id}</p>
-            <p><strong>Transcript:</strong> {c.transcript}</p>
-            <p><strong>Entities:</strong> {c.entities_extracted}</p>
+            <strong>Candidate #{c.candidate_id}</strong>: "{c.transcript}" <br />
+            <em>Entities: {c.entities_extracted}</em>
           </li>
         ))}
       </ul>

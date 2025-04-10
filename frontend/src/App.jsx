@@ -1,15 +1,15 @@
-import { BrowserRouter } from "react-router-dom";
-import AppRoutes from "./routes/AppRoutes";
-import Layout from "./components/Layout";
+import Navbar from "./components/Navbar";
+import AppRoutes from "./AppRoutes";
 
-function App() {
+const App = () => {
   return (
-    <BrowserRouter>
-      <Layout>
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <main className="max-w-5xl mx-auto mt-6 px-4">
         <AppRoutes />
-      </Layout>
-    </BrowserRouter>
+      </main>
+    </div>
   );
-}
+};
 
 export default App;

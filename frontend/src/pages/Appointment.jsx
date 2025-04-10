@@ -1,50 +1,95 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useState } from 'react';
+import api from '../services/api';
 
 const Appointment = () => {
   const [appointments, setAppointments] = useState([]);
-  const [formData, setFormData] = useState({
-    job_id: "",
-    candidate_id: "",
-    date_time: "",
-    status: "scheduled"
+  const [candidates, setCandidates] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [form, setForm] = useState({
+    candidate_id: '',
+    job_id: '',
+    date_time: '',
+    status: 'Scheduled',
   });
 
   useEffect(() => {
-    axios.get("http://localhost:5000/api/appointments")
-      .then((res) => setAppointments(res.data))
-      .catch(console.error);
+    fetchAppointments();
+    fetchCandidates();
+    fetchJobs();
   }, []);
+
+  const fetchAppointments = async () => {
+    const res = await api.get('/appointments');
+    setAppointments(res.data);
+  };
+
+  const fetchCandidates = async () => {
+    const res = await api.get('/candidates');
+    setCandidates(res.data);
+  };
+
+  const fetchJobs = async () => {
+    const res = await api.get('/jobs');
+    setJobs(res.data);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const res = await axios.post("http://localhost:5000/api/appointments", formData);
-      setAppointments([...appointments, res.data]);
-      setFormData({ job_id: "", candidate_id: "", date_time: "", status: "scheduled" });
-    } catch (err) {
-      console.error(err);
-    }
+    await api.post('/appointments', form);
+    setForm({ candidate_id: '', job_id: '', date_time: '', status: 'Scheduled' });
+    fetchAppointments();
   };
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold mb-4">Appointments</h2>
+      <h2 className="text-xl font-bold mb-4">Appointments</h2>
+
       <form onSubmit={handleSubmit} className="space-y-3 mb-6">
-        <input type="text" placeholder="Job ID" value={formData.job_id} onChange={(e) => setFormData({ ...formData, job_id: e.target.value })} className="border px-3 py-1 rounded w-full" required />
-        <input type="text" placeholder="Candidate ID" value={formData.candidate_id} onChange={(e) => setFormData({ ...formData, candidate_id: e.target.value })} className="border px-3 py-1 rounded w-full" required />
-        <input type="datetime-local" value={formData.date_time} onChange={(e) => setFormData({ ...formData, date_time: e.target.value })} className="border px-3 py-1 rounded w-full" required />
-        <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="border px-3 py-1 rounded w-full">
-          <option value="scheduled">Scheduled</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
+        <select
+          value={form.candidate_id}
+          onChange={(e) => setForm({ ...form, candidate_id: e.target.value })}
+          className="border p-2 w-full"
+          required
+        >
+          <option value="">Select Candidate</option>
+          {candidates.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
-        <button className="bg-green-600 text-white px-4 py-2 rounded">Add Appointment</button>
+
+        <select
+          value={form.job_id}
+          onChange={(e) => setForm({ ...form, job_id: e.target.value })}
+          className="border p-2 w-full"
+          required
+        >
+          <option value="">Select Job</option>
+          {jobs.map((j) => (
+            <option key={j.id} value={j.id}>
+              {j.title}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="datetime-local"
+          value={form.date_time}
+          onChange={(e) => setForm({ ...form, date_time: e.target.value })}
+          className="border p-2 w-full"
+          required
+        />
+
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+          Book Appointment
+        </button>
       </form>
+
       <ul className="space-y-2">
         {appointments.map((a) => (
-          <li key={a.id} className="border p-2 rounded">
-            Job #{a.job_id} → Candidate #{a.candidate_id} on {a.date_time} [{a.status}]
+          <li key={a.id} className="border p-3 rounded">
+            <strong>{a.status}</strong> — Candidate #{a.candidate_id}, Job #{a.job_id} at {new Date(a.date_time).toLocaleString()}
           </li>
         ))}
       </ul>
