@@ -36,15 +36,14 @@ const Appointment = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const date = new Date(form.date_time);
-    const mysqlDatetime = date.toISOString().slice(0, 19).replace('T', ' ');
-    console.log(mysqlDatetime);
+    const parsedDatetime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+    
 
     const updatedForm = {
       ...form,
-      date_time: mysqlDatetime,
+      date_time: parsedDatetime,
     };
   
-    console.log(updatedForm);
     await api.post('/appointments', updatedForm);
     setForm({ candidate_id: '', job_id: '', date_time: '', status: 'Scheduled' });
     fetchAppointments();

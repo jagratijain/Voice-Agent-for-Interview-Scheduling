@@ -19,13 +19,15 @@ exports.getAppointmentById = (req, res) => {
 
 // Create appointment
 exports.createAppointment = (req, res) => {
-  const { job_id, candidate_id, date, status } = req.body;
-  console.log(date);
-  
+  console.log(req.body);
+
+  const { job_id, candidate_id, date_time, status } = req.body;
+  console.log(date_time);
+
   db.query('INSERT INTO appointments (job_id, candidate_id, date_time, status) VALUES (?, ?, ?, ?)',
-    [job_id, candidate_id, date, status], (err, result) => {
+    [job_id, candidate_id, date_time, status], (err, result) => {
       if (err) return res.status(500).json({ error: err });
-      res.status(201).json({ id: result.insertId, job_id, candidate_id, date, status });
+      res.status(201).json({ id: result.insertId, job_id, candidate_id, date_time, status });
     });
 };
 

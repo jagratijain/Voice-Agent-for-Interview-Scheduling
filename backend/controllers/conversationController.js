@@ -19,11 +19,11 @@ exports.getConversationById = (req, res) => {
 
 // Create conversation
 exports.createConversation = (req, res) => {
-  const { candidate_id, message } = req.body;
-  db.query('INSERT INTO conversations (candidate_id, message) VALUES (?, ?)',
-    [candidate_id, message], (err, result) => {
+  const { candidate_id, transcript, entities_extracted } = req.body;
+  db.query('INSERT INTO conversations (candidate_id, transcript, entities_extracted) VALUES (?, ?, ?)',
+    [candidate_id, transcript, entities_extracted], (err, result) => {
       if (err) return res.status(500).json({ error: err });
-      res.status(201).json({ id: result.insertId, candidate_id, message });
+      res.status(201).json({ id: result.insertId, candidate_id, transcript });
     });
 };
 
