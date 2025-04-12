@@ -9,17 +9,64 @@ const Job = () => {
   const initialFormState = {
     title: '',
     description: '',
-    requirements: ''
+    requirements: '',
+    timeSlots: {}
   };
   const [form, setForm] = useState(initialFormState);
   const [editingId, setEditingId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showTimeSlots, setShowTimeSlots] = useState(false);
+
+  // Generate next week's dates
+  const getNextWeekDates = () => {
+    const today = new Date();
+    const nextWeekDates = [];
+    
+    // Start from next Monday
+    const daysUntilMonday = (1 + 7 - today.getDay()) % 7 || 7;
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() + daysUntilMonday);
+    
+    // Get 5 weekdays (Monday to Friday)
+    for (let i = 0; i < 5; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      nextWeekDates.push(date);
+    }
+    
+    return nextWeekDates;
+  };
+
+  const nextWeekDates = getNextWeekDates();
+  
+  // Time slots available
+  const timeSlots = [
+    '09:00 AM', '10:00 AM', '11:00 AM', 
+    '12:00 PM', '01:00 PM', '02:00 PM', 
+    '03:00 PM', '04:00 PM', '05:00 PM'
+  ];
+
+  // Initialize selected time slots
+  useEffect(() => {
+    const initialTimeSlots = {};
+    nextWeekDates.forEach(date => {
+      const dateStr = date.toISOString().split('T')[0];
+      initialTimeSlots[dateStr] = [];
+    });
+    
+    setForm(prev => ({
+      ...prev,
+      timeSlots: initialTimeSlots
+    }));
+  }, []);
 
   // Fetch existing jobs
   useEffect(() => {
     fetchJobs();
+    
+    
   }, []);
 
   const fetchJobs = async () => {
@@ -27,6 +74,7 @@ const Job = () => {
     try {
       const res = await api.get('/jobs');
       setJobs(res.data);
+      console.log(jobs);
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast.error("Failed to load jobs. Please try again.")
@@ -35,19 +83,49 @@ const Job = () => {
     }
   };
 
+  // Handle time slot selection
+  const toggleTimeSlot = (dateStr, timeSlot) => {
+    setForm(prev => {
+      const currentSlots = prev.timeSlots[dateStr] || [];
+      let newSlots;
+      
+      if (currentSlots.includes(timeSlot)) {
+        // Remove slot if already selected
+        newSlots = currentSlots.filter(slot => slot !== timeSlot);
+      } else {
+        // Add slot if not selected
+        newSlots = [...currentSlots, timeSlot];
+      }
+      
+      return {
+        ...prev,
+        timeSlots: {
+          ...prev.timeSlots,
+          [dateStr]: newSlots
+        }
+      };
+    });
+  };
+
   // Submit for both add and edit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Format the form data with time slots
+    const formData = {
+      ...form,
+      timeSlots: JSON.stringify(form.timeSlots) // Convert time slots to JSON string for storage
+    };
+
     try {
       if (formMode === 'add') {
         // Add new job
-        await api.post('/jobs', form);
+        await api.post('/jobs', formData);
         toast.success('Job posting added successfully!')
       } else {
         // Update existing job
-        await api.put(`/jobs/${editingId}`, form);
+        await api.put(`/jobs/${editingId}`, formData);
         toast.success('Job posting updated successfully!')
       }
 
@@ -70,7 +148,6 @@ const Job = () => {
 
     setIsDeleting(true);
 
-
     try {
       await api.delete(`/jobs/${id}`);
       setJobs(jobs.filter(job => job.id !== id));
@@ -78,7 +155,6 @@ const Job = () => {
     } catch (error) {
       console.error('Error deleting job:', error);
       toast.error("Failed to delete job posting. Please try again.")
-
     } finally {
       setIsDeleting(false);
     }
@@ -88,10 +164,25 @@ const Job = () => {
   const handleEdit = (job) => {
     setFormMode('edit');
     setEditingId(job.id);
+    
+    // Parse timeSlots if it exists as a string
+    let parsedTimeSlots = {};
+    if (job.timeSlots) {
+      try {
+        parsedTimeSlots = typeof job.timeSlots === 'string' 
+          ? JSON.parse(job.timeSlots) 
+          : job.timeSlots;
+      } catch (e) {
+        console.error('Error parsing time slots:', e);
+        parsedTimeSlots = {};
+      }
+    }
+    
     setForm({
       title: job.title || '',
       description: job.description || '',
       requirements: job.requirements || '',
+      timeSlots: parsedTimeSlots
     });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -101,13 +192,34 @@ const Job = () => {
   const resetForm = () => {
     setFormMode('add');
     setEditingId(null);
-    setForm(initialFormState);
+    
+    // Reset form but keep the initial time slots structure
+    const initialTimeSlots = {};
+    nextWeekDates.forEach(date => {
+      const dateStr = date.toISOString().split('T')[0];
+      initialTimeSlots[dateStr] = [];
+    });
+    
+    setForm({
+      ...initialFormState,
+      timeSlots: initialTimeSlots
+    });
+    
+    setShowTimeSlots(false);
+  };
+  
+  // Format date for display
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric' 
+    });
   };
 
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Job Descriptions</h2>
-
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Left side - Job Form */}
@@ -144,7 +256,6 @@ const Job = () => {
               />
             </div>
 
-
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                 Job Description
@@ -176,11 +287,76 @@ const Job = () => {
                 disabled={isSubmitting}
               />
             </div>
+            
+            {/* Time Slots Section */}
+            <div className="border border-gray-200 rounded-md p-4">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-medium text-gray-700">Interview Availability</h4>
+                <button 
+                  type="button"
+                  onClick={() => setShowTimeSlots(!showTimeSlots)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800"
+                >
+                  {showTimeSlots ? 'Hide Time Slots' : 'Set Available Times'}
+                </button>
+              </div>
+              
+              {showTimeSlots && (
+                <div className="mt-3">
+                  <p className="text-sm text-gray-500 mb-3">Select available interview time slots for next week:</p>
+                  
+                  <div className="space-y-4">
+                    {nextWeekDates.map(date => {
+                      const dateStr = date.toISOString().split('T')[0];
+                      const selectedSlots = form.timeSlots[dateStr] || [];
+                      
+                      return (
+                        <div key={dateStr} className="border-t pt-3">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            {formatDate(date)}
+                          </h5>
+                          <div className="grid grid-cols-3 gap-2">
+                            {timeSlots.map(timeSlot => (
+                              <button
+                                key={`${dateStr}-${timeSlot}`}
+                                type="button"
+                                onClick={() => toggleTimeSlot(dateStr, timeSlot)}
+                                className={`text-xs py-1 px-2 rounded-full border ${
+                                  selectedSlots.includes(timeSlot)
+                                    ? 'bg-indigo-100 border-indigo-300 text-indigo-700' 
+                                    : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {timeSlot}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className="mt-3 text-xs text-gray-500">
+                    Selected times will be available for interview scheduling
+                  </div>
+                </div>
+              )}
+              
+              {!showTimeSlots && Object.entries(form.timeSlots).some(([_, slots]) => slots.length > 0) && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium">Time slots set: </span>
+                  {Object.entries(form.timeSlots).reduce((count, [_, slots]) => count + slots.length, 0)} time slots across {
+                    Object.entries(form.timeSlots).filter(([_, slots]) => slots.length > 0).length
+                  } days
+                </div>
+              )}
+            </div>
 
             <button
               type="submit"
-              className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${isSubmitting ? "opacity-75 cursor-not-allowed" : ""
-                }`}
+              className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${
+                isSubmitting ? "opacity-75 cursor-not-allowed" : ""
+              }`}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
