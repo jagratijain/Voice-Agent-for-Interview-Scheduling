@@ -417,11 +417,9 @@ const Conversation = () => {
     
     try {
       // Save or update candidate information
-      const candidateResponse = await axios.post(`${API_BASE_URL}/candidates`, {
-        name: profile?.name,
-        email: profile?.email,
-        phone: profile?.phone,
-        location: profile?.location,
+      console.log(profile);
+      
+      const candidateResponse = await axios.post(`${API_BASE_URL}/candidates/${profile.id}`, {
         current_ctc: answers.current_ctc,
         expected_ctc: answers.expected_ctc,
         notice_period: answers.notice_period

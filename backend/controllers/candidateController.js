@@ -23,20 +23,13 @@ exports.createCandidate = (req, res) => {
   const {
     name,
     phone,
-    current_ctc,
-    expected_ctc,
-    notice_period,
-    experience,
-    email,
-    location,
-    booking_status = 'pending',
+    experience
   } = req.body;
 
   db.query(
     `INSERT INTO candidates 
-      (name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status],
+      (name, phone, experience) VALUES (?, ?, ?)`,
+    [name, phone, experience],
     (err, result) => {
       if (err) return res.status(500).json({ error: err });
 
@@ -53,35 +46,22 @@ exports.createCandidate = (req, res) => {
 exports.updateCandidate = (req, res) => {
   const { id } = req.params;
   const {
-    name,
-    phone,
     current_ctc,
     expected_ctc,
-    notice_period,
-    experience,
-    email,
-    location,
-    booking_status,
+    notice_period
   } = req.body;
 
   db.query(
     `UPDATE candidates 
-     SET name = ?, phone = ?, current_ctc = ?, expected_ctc = ?, notice_period = ?, experience = ?, email = ?, location = ?, booking_status = ? 
-     WHERE id = ?`,
-    [name, phone, current_ctc, expected_ctc, notice_period, experience, email, location, booking_status, id],
+     SET current_ctc = ?, expected_ctc = ?, notice_period = ? WHERE id = ?`,
+    [current_ctc, expected_ctc, notice_period, id],
     (err) => {
       if (err) return res.status(500).json({ error: err });
       res.json({
-        id,
-        name,
-        phone,
         current_ctc,
         expected_ctc,
         notice_period,
-        experience,
-        email,
-        location,
-        booking_status
+        
       });
     }
   );
