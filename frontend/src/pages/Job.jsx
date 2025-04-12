@@ -1,26 +1,23 @@
 import { useEffect, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import JobCard from '../components/JobCard';
 import api from '../services/api';
 
 const Job = () => {
   const [jobs, setJobs] = useState([]);
-  const [formMode, setFormMode] = useState('add'); // 'add' or 'edit'
+  const [formMode, setFormMode] = useState('add');
   const initialFormState = {
     title: '',
     description: '',
-    requirements: '',
-    company: '',
-    location: '',
-    job_type: 'Full-time'
+    requirements: ''
   };
   const [form, setForm] = useState(initialFormState);
   const [editingId, setEditingId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
 
-  // Fetch jobs on mount
+  // Fetch existing jobs
   useEffect(() => {
     fetchJobs();
   }, []);
@@ -30,67 +27,63 @@ const Job = () => {
     try {
       const res = await api.get('/jobs');
       setJobs(res.data);
-      setMessage({ type: "", text: "" });
     } catch (error) {
       console.error('Error fetching jobs:', error);
-      setMessage({ type: "error", text: "Failed to load jobs. Please try again." });
+      toast.error("Failed to load jobs. Please try again.")
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Submit handler for both add and edit
+  // Submit for both add and edit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setMessage({ type: "", text: "" });
-    
+
     try {
       if (formMode === 'add') {
         // Add new job
         await api.post('/jobs', form);
-        setMessage({ type: "success", text: "Job posting added successfully!" });
+        toast.success('Job posting added successfully!')
       } else {
         // Update existing job
         await api.put(`/jobs/${editingId}`, form);
-        setMessage({ type: "success", text: "Job posting updated successfully!" });
+        toast.success('Job posting updated successfully!')
       }
-      
+
       // Reset form and fetch updated jobs
       resetForm();
       await fetchJobs();
     } catch (error) {
       console.error(`Error ${formMode === 'add' ? 'adding' : 'updating'} job:`, error);
-      setMessage({ 
-        type: "error", 
-        text: `Failed to ${formMode === 'add' ? 'add' : 'update'} job posting. Please try again.` 
-      });
+      toast.error(`Failed to ${formMode === 'add' ? 'add' : 'update'} job posting. Please try again.`)
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
   // Delete job
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this job posting?")) {
       return;
     }
-    
+
     setIsDeleting(true);
-    setMessage({ type: "", text: "" });
-    
+
+
     try {
       await api.delete(`/jobs/${id}`);
       setJobs(jobs.filter(job => job.id !== id));
-      setMessage({ type: "success", text: "Job posting deleted successfully!" });
+      toast.success('Job posting deleted successfully!')
     } catch (error) {
       console.error('Error deleting job:', error);
-      setMessage({ type: "error", text: "Failed to delete job posting. Please try again." });
+      toast.error("Failed to delete job posting. Please try again.")
+
     } finally {
       setIsDeleting(false);
     }
   };
-  
+
   // Handle edit button click
   const handleEdit = (job) => {
     setFormMode('edit');
@@ -99,15 +92,11 @@ const Job = () => {
       title: job.title || '',
       description: job.description || '',
       requirements: job.requirements || '',
-      company: job.company || '',
-      location: job.location || '',
-      job_type: job.job_type || 'Full-time'
     });
-    
-    // Scroll to the form
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
+
   // Reset form and go back to add mode
   const resetForm = () => {
     setFormMode('add');
@@ -119,16 +108,7 @@ const Job = () => {
     <div className="max-w-6xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Job Descriptions</h2>
 
-      {message.text && (
-        <div className={`mb-6 p-4 rounded-md ${
-          message.type === "success" 
-            ? "bg-green-50 text-green-700 border border-green-200" 
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
-          {message.text}
-        </div>
-      )}
-      
+
       <div className="grid md:grid-cols-2 gap-6">
         {/* Left side - Job Form */}
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -136,7 +116,7 @@ const Job = () => {
             <h3 className="text-lg font-semibold text-gray-800">
               {formMode === 'add' ? 'Add New Job Posting' : 'Edit Job Posting'}
             </h3>
-            
+
             {formMode === 'edit' && (
               <button
                 onClick={resetForm}
@@ -146,7 +126,7 @@ const Job = () => {
               </button>
             )}
           </div>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
@@ -163,7 +143,7 @@ const Job = () => {
                 disabled={isSubmitting}
               />
             </div>
-            
+
 
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -180,7 +160,7 @@ const Job = () => {
                 disabled={isSubmitting}
               />
             </div>
-            
+
             <div>
               <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
                 Requirements
@@ -196,12 +176,11 @@ const Job = () => {
                 disabled={isSubmitting}
               />
             </div>
-            
-            <button 
-              type="submit" 
-              className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${
-                isSubmitting ? "opacity-75 cursor-not-allowed" : ""
-              }`}
+
+            <button
+              type="submit"
+              className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${isSubmitting ? "opacity-75 cursor-not-allowed" : ""
+                }`}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -218,11 +197,11 @@ const Job = () => {
             </button>
           </form>
         </div>
-        
+
         {/* Right side - Jobs List */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Available Jobs</h3>
-          
+
           {isLoading ? (
             <div className="bg-white rounded-lg shadow-md p-12 flex justify-center">
               <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -241,9 +220,9 @@ const Job = () => {
           ) : (
             <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
               {jobs.map((job) => (
-                <JobCard 
-                  key={job.id} 
-                  job={job} 
+                <JobCard
+                  key={job.id}
+                  job={job}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   isDeleting={isDeleting}
@@ -253,6 +232,7 @@ const Job = () => {
           )}
         </div>
       </div>
+      <div><Toaster /></div>
     </div>
   );
 };

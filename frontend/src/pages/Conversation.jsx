@@ -1,5 +1,6 @@
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
+import toast, { Toaster } from 'react-hot-toast';
 
 const Conversation = () => {
   // Constants and refs
@@ -465,7 +466,7 @@ const Conversation = () => {
       // Show success message and reset
       setState(prev => ({ ...prev, errorMessage: "" }));
       setTimeout(() => {
-        alert("Interview information saved successfully!");
+        toast.success('Interview information saved successfully!')
         setState(prev => ({ ...prev, activeInterview: false }));
       }, 1000);
     } catch (err) {
@@ -505,9 +506,7 @@ const Conversation = () => {
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Voice Interview Assistant</h2>
 
       {errorMessage && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
-          {errorMessage}
-        </div>
+        toast.error(`${errorMessage}`)
       )}
 
       {!activeInterview ? (
@@ -764,6 +763,7 @@ const Conversation = () => {
           </div>
         </div>
       )}
+      <div><Toaster /></div>
     </div>
   );
 };

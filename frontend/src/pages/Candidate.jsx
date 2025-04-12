@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast, { Toaster } from 'react-hot-toast';
 import CandidateCard from '../components/CandidateCard';
 import api from "../services/api";
 
@@ -10,7 +11,6 @@ const Candidate = () => {
     experience: ""
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
   const [deletingId, setDeletingId] = useState(null);
 
   // Fetch all candidates
@@ -21,7 +21,7 @@ const Candidate = () => {
       setCandidates(res.data);
     } catch (err) {
       console.error(err);
-      setMessage({ type: "error", text: "Failed to load candidates" });
+      toast.error("Failed to load candidates. Please try again.")
     } finally {
       setIsLoading(false);
     }
@@ -33,10 +33,10 @@ const Candidate = () => {
     try {
       await api.delete(`/candidates/${id}`);
       setCandidates(candidates.filter(candidate => candidate.id !== id));
-      setMessage({ type: "success", text: "Candidate deleted successfully" });
+      toast.success('Candidate deleted successfully!')
     } catch (err) {
       console.error(err);
-      setMessage({ type: "error", text: "Failed to delete candidate" });
+      toast.error("Failed to delete candidate. Please try again.")
     } finally {
       setDeletingId(null);
     }
@@ -46,19 +46,19 @@ const Candidate = () => {
     fetchCandidates();
   }, []);
 
+  // To create a candidate
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage({ type: "", text: "" });
     
     try {
       const res = await api.post("/candidates", formData);
       setCandidates([res.data, ...candidates]);
       setFormData({ name: "", phone: "", experience: "" });
-      setMessage({ type: "success", text: "Candidate added successfully" });
+      toast.success('Candidate added successfully!')
     } catch (err) {
       console.error(err);
-      setMessage({ type: "error", text: "Failed to add candidate" });
+      toast.error("Failed to add candidate. Please try again.")
     } finally {
       setIsLoading(false);
     }
@@ -71,16 +71,6 @@ const Candidate = () => {
         <div className="md:w-1/3">
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Add Candidate</h2>
-            
-            {message.text && (
-              <div className={`mb-4 p-3 rounded-md ${
-                message.type === "success" 
-                  ? "bg-green-50 text-green-700 border border-green-200" 
-                  : "bg-red-50 text-red-700 border border-red-200"
-              }`}>
-                {message.text}
-              </div>
-            )}
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -191,6 +181,7 @@ const Candidate = () => {
           )}
         </div>
       </div>
+      <div><Toaster /></div>
     </div>
   );
 };

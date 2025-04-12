@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
 import api from '../services/api';
 
 const Appointment = () => {
@@ -7,14 +8,14 @@ const Appointment = () => {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
   const [form, setForm] = useState({
     candidate_id: '',
     job_id: '',
     date_time: '',
-    status: 'confirmed',
+    status: 'confirmed', //Adding the status confirmed as by default
   });
 
+  // To fetched the already created appointments
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -30,7 +31,7 @@ const Appointment = () => {
         setJobs(jobsRes.data);
       } catch (error) {
         console.error("Error fetching data:", error);
-        setMessage({ type: "error", text: "Failed to load data. Please try again." });
+        toast.error("Failed to load data. Please try again.")
       } finally {
         setIsLoading(false);
       }
@@ -39,10 +40,10 @@ const Appointment = () => {
     fetchData();
   }, []);
 
+  // To create an appointment manually
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setMessage({ type: "", text: "" });
     
     try {
       const date = new Date(form.date_time);
@@ -55,15 +56,13 @@ const Appointment = () => {
       
       await api.post('/appointments', updatedForm);
       
-      // Reset form and refresh appointments
       setForm({ candidate_id: '', job_id: '', date_time: '', status: 'confirmed' });
       const res = await api.get('/appointments');
-      setAppointments(res.data);
-      
-      setMessage({ type: "success", text: "Appointment scheduled successfully!" });
+      setAppointments(res.data);      
+      toast.success('Appointment scheduled successfully!')
     } catch (error) {
       console.error("Error scheduling appointment:", error);
-      setMessage({ type: "error", text: "Failed to schedule appointment. Please try again." });
+      toast.error("Failed to schedule appointment. Please try again.")
     } finally {
       setIsSubmitting(false);
     }
@@ -121,10 +120,10 @@ const Appointment = () => {
     try {
       await api.delete(`/appointments/${id}`);
       setAppointments(appointments.filter(a => a.id !== id));
-      setMessage({ type: "success", text: "Appointment deleted successfully" });
+      toast.success('Appointment deleted successfully!')
     } catch (error) {
       console.error("Error deleting appointment:", error);
-      setMessage({ type: "error", text: "Failed to delete appointment" });
+      toast.error("Failed to delete appointment.")
     } finally {
       setIsLoading(false);
     }
@@ -140,11 +139,10 @@ const Appointment = () => {
       setAppointments(appointments.map(a => 
         a.id === id ? { ...a, status: 'completed' } : a
       ));
-      
-      setMessage({ type: "success", text: "Appointment marked as completed" });
+      toast.success('Appointment marked as completed!')
     } catch (error) {
       console.error("Error updating appointment:", error);
-      setMessage({ type: "error", text: "Failed to update appointment status" });
+      toast.error("Failed to update appointment status.")
     } finally {
       setIsLoading(false);
     }
@@ -154,16 +152,6 @@ const Appointment = () => {
     <div className="max-w-6xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Appointment Management</h2>
 
-      {message.text && (
-        <div className={`mb-6 p-4 rounded-md ${
-          message.type === "success" 
-            ? "bg-green-50 text-green-700 border border-green-200" 
-            : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
-          {message.text}
-        </div>
-      )}
-      
       <div className="grid md:grid-cols-2 gap-6">
         {/* Left side - Appointment Form */}
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -329,6 +317,7 @@ const Appointment = () => {
           )}
         </div>
       </div>
+      <div><Toaster /></div>
     </div>
   );
 };
