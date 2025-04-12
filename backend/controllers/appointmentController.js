@@ -34,11 +34,11 @@ exports.createAppointment = (req, res) => {
 // Update appointment
 exports.updateAppointment = (req, res) => {
   const { id } = req.params;
-  const { job_id, candidate_id, date, status } = req.body;
-  db.query('UPDATE appointments SET job_id=?, candidate_id=?, date=?, status=? WHERE id=?',
-    [job_id, candidate_id, date, status, id], (err) => {
+  const {status } = req.body;
+  db.query('UPDATE appointments SET status=? WHERE id=?',
+    [status, id], (err) => {
       if (err) return res.status(500).json({ error: err });
-      res.json({ id, job_id, candidate_id, date, status });
+      res.json({ id, status });
     });
 };
 
