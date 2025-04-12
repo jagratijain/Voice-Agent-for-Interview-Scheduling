@@ -2,9 +2,9 @@ const db = require('../config/db');
 
 // Create a new job
 exports.createJob = (req, res) => {
-  const { title, description, requirements, interview_slots } = req.body;
-  const sql = `INSERT INTO jobs (title, description, requirements, interview_slots) VALUES (?, ?, ?, ?)`;
-  db.query(sql, [title, description, requirements, interview_slots], (err, result) => {
+  const { title, description, requirements } = req.body;
+  const sql = `INSERT INTO jobs (title, description, requirements) VALUES (?, ?, ?)`;
+  db.query(sql, [title, description, requirements], (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.status(201).json({ message: 'Job created successfully', jobId: result.insertId });
   });
@@ -31,9 +31,9 @@ exports.getJobById = (req, res) => {
 // Update job
 exports.updateJob = (req, res) => {
   const { id } = req.params;
-  const { title, description, requirements, interview_slots } = req.body;
-  const sql = `UPDATE jobs SET title=?, description=?, requirements=?, interview_slots=? WHERE id=?`;
-  db.query(sql, [title, description, requirements, interview_slots, id], (err, result) => {
+  const { title, description, requirements } = req.body;
+  const sql = `UPDATE jobs SET title=?, description=?, requirements=? WHERE id=?`;
+  db.query(sql, [title, description, requirements, id], (err, result) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ message: 'Job updated successfully' });
   });
