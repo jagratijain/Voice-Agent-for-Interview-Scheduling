@@ -1,11 +1,10 @@
-import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import toast, { Toaster } from 'react-hot-toast';
+import api from '../services/api';
 
 const Conversation = () => {
   // Constants and refs
   const COMPANY = "Interactly";
-  const API_BASE_URL = "http://localhost:5000/api";
   const synth = window.speechSynthesis;
   const recognitionRef = useRef(null);
 
@@ -27,7 +26,11 @@ const Conversation = () => {
     selectedJob: null,
     isLoading: false,
     activeInterview: false,
-    errorMessage: ""
+    errorMessage: "",
+    
+    // Time slots
+    availableTimeSlots: {},
+    suggestedAlternatives: []
   });
 
   // Questions sequence
@@ -60,13 +63,11 @@ const Conversation = () => {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      // Fetch candidates and jobs in parallel
       const [candidatesRes, jobsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/candidates`),
-        axios.get(`${API_BASE_URL}/jobs`)
+        api.get("/candidates"),
+        api.get("/jobs")
       ]);
 
-      // Set default job if available
       const defaultJob = jobsRes.data.length > 0 ? jobsRes.data[0] : null;
 
       setState(prev => ({
@@ -83,6 +84,7 @@ const Conversation = () => {
         errorMessage: "Failed to load candidates or jobs",
         isLoading: false
       }));
+      toast.error("Failed to load candidates or jobs");
     }
   };
 
@@ -92,7 +94,6 @@ const Conversation = () => {
     if (!recognition) return;
 
     if (state.isListening) {
-      // Set up handlers
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         stopListening();
@@ -122,16 +123,109 @@ const Conversation = () => {
         }
       }, 50);
     } else {
-      // Clean up handlers when not listening
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
     }
   }, [state.isListening]);
 
+  // Parse time slots from job
+  const parseTimeSlots = (job) => {
+    if (!job || !job.timeSlots) return {};
+    
+    try {
+      return typeof job.timeSlots === 'string' 
+        ? JSON.parse(job.timeSlots)
+        : job.timeSlots;
+    } catch (error) {
+      console.error("Error parsing time slots:", error);
+      return {};
+    }
+  };
+
   // Process user's response
   const processUserResponse = (text, questionIndex) => {
     const currentQ = questions[questionIndex];
+    
+    // Special handling for availability question
+    if (currentQ.field === "availability") {
+      const entities = extractDateTimeEntities(text);
+      
+      // Check if the requested date and time are available
+      if (entities.interview_date && entities.interview_time) {
+        const dateKey = entities.interview_date;
+        const { availableTimeSlots } = state;
+        
+        // Check if this date has any available slots
+        if (!availableTimeSlots[dateKey] || availableTimeSlots[dateKey].length === 0) {
+          // Date is not available, suggest alternatives
+          const alternatives = findAlternativeDates();
+          
+          if (alternatives.length > 0) {
+            setState(prev => ({
+              ...prev,
+              suggestedAlternatives: alternatives
+            }));
+            
+            // Prepare alternative dates message
+            let alternativesMessage = "I'm sorry, that time is not available. ";
+            
+            if (alternatives.length === 1) {
+              const alt = alternatives[0];
+              alternativesMessage += `We have availability on ${formatDate(alt.date)}. Would that work for you?`;
+            } else {
+              alternativesMessage += "We have availability on ";
+              alternatives.forEach((alt, index) => {
+                if (index === alternatives.length - 1) {
+                  alternativesMessage += `or ${formatDate(alt.date)}`;
+                } else {
+                  alternativesMessage += `${formatDate(alt.date)}, `;
+                }
+              });
+              alternativesMessage += ". Which day works best for you?";
+            }
+            
+            // Ask about alternatives and re-listen
+            speak(alternativesMessage, () => {
+              setTimeout(startListening, 300);
+            });
+            return;
+          }
+        } 
+        // Check if the requested time slot is available for this date
+        else if (!availableTimeSlots[dateKey].includes(entities.interview_time)) {
+          // Time is not available on this date, suggest alternative times
+          const availableTimes = availableTimeSlots[dateKey];
+          
+          if (availableTimes.length > 0) {
+            // Prepare alternative times message
+            let alternativesMessage = `I'm sorry, ${entities.interview_time} is not available on ${formatDate(dateKey)}. `;
+            
+            if (availableTimes.length === 1) {
+              alternativesMessage += `We have ${availableTimes[0]} available. Would that work for you?`;
+            } else {
+              alternativesMessage += "We have ";
+              availableTimes.forEach((time, index) => {
+                if (index === availableTimes.length - 1) {
+                  alternativesMessage += `or ${time}`;
+                } else {
+                  alternativesMessage += `${time}, `;
+                }
+              });
+              alternativesMessage += " available. Which time works best for you?";
+            }
+            
+            // Ask about alternative times and re-listen
+            speak(alternativesMessage, () => {
+              setTimeout(startListening, 300);
+            });
+            return;
+          }
+        }
+      }
+    }
+    
+    // Regular entity extraction
     const entities = extractEntities(text, currentQ.field);
 
     // Update state with new log entry and answers
@@ -162,9 +256,93 @@ const Conversation = () => {
     }
   };
 
+  // Find alternative available dates
+  const findAlternativeDates = () => {
+    const { availableTimeSlots } = state;
+    const alternatives = [];
+    
+    Object.entries(availableTimeSlots).forEach(([date, times]) => {
+      if (times.length > 0) {
+        alternatives.push({
+          date,
+          times
+        });
+      }
+    });
+    
+    return alternatives.slice(0, 3); // Limit to 3 alternatives
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (error) {
+      return dateString;
+    }
+  };
+
+  // Extract date and time entities with time slot checking
+  const extractDateTimeEntities = (text) => {
+    // Extract day of week and time
+    const dayMatch = text.match(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
+    const dayOfWeek = dayMatch ? dayMatch[0] : null;
+
+    const timeMatch = text.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i);
+    const timeOfDay = timeMatch ? timeMatch[0] : "10:00 AM";
+
+    // Calculate actual date
+    let interviewDate = "";
+    let formattedDate = "";
+
+    if (dayOfWeek) {
+      const today = new Date();
+      const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const targetDayIndex = daysOfWeek.findIndex(day =>
+        day.toLowerCase() === dayOfWeek.toLowerCase()
+      );
+
+      if (targetDayIndex !== -1) {
+        const currentDayIndex = today.getDay();
+        let daysToAdd = targetDayIndex - currentDayIndex;
+        if (daysToAdd <= 0) daysToAdd += 7;
+
+        const interviewDateObj = new Date();
+        interviewDateObj.setDate(today.getDate() + daysToAdd);
+
+        interviewDate = interviewDateObj.toISOString().split('T')[0];
+        formattedDate = `${dayOfWeek}, ${interviewDateObj.toLocaleDateString('en-US', {
+          month: 'long', day: 'numeric'
+        })}`;
+      }
+    } else {
+      // Default to next Monday
+      const today = new Date();
+      const daysUntilMonday = (1 + 7 - today.getDay()) % 7 || 7;
+
+      const interviewDateObj = new Date();
+      interviewDateObj.setDate(today.getDate() + daysUntilMonday);
+
+      interviewDate = interviewDateObj.toISOString().split('T')[0];
+      formattedDate = `Monday, ${interviewDateObj.toLocaleDateString('en-US', {
+        month: 'long', day: 'numeric'
+      })}`;
+    }
+
+    return {
+      interview_date: interviewDate,
+      formatted_date: formattedDate,
+      interview_time: timeOfDay
+    };
+  };
+
   // Move to next question
   const continueToNextQuestion = (nextIndex, entities) => {
-    // Update question index
     setState(prev => ({
       ...prev,
       currentQuestionIndex: nextIndex
@@ -189,11 +367,10 @@ const Conversation = () => {
       speak(nextQuestion, () => {
         setTimeout(startListening, 300);
       });
-    }, 500);
+    }, 300);
   };
 
   const convertTimeToISO = (timeString) => {
-    // Assuming timeString is in format like "3:00 PM" or "15:00"
     let hours, minutes;
     
     if (timeString.includes(':')) {
@@ -209,12 +386,10 @@ const Conversation = () => {
       
       minutes = parseInt(minutePart.replace(/[^0-9]/g, ''));
     } else {
-      // If time is just a number like "15"
       hours = parseInt(timeString);
       minutes = 0;
     }
     
-    // Ensure 2 digits
     const hoursStr = hours.toString().padStart(2, '0');
     const minutesStr = minutes.toString().padStart(2, '0');
     
@@ -239,56 +414,7 @@ const Conversation = () => {
         };
 
       case "availability":
-        // Extract day of week and time
-        const dayMatch = text.match(/\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
-        const dayOfWeek = dayMatch ? dayMatch[0] : null;
-
-        const timeMatch = text.match(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/i);
-        const timeOfDay = timeMatch ? timeMatch[0] : "10:00 AM";
-
-        // Calculate actual date
-        let interviewDate = "";
-        let formattedDate = "";
-
-        if (dayOfWeek) {
-          const today = new Date();
-          const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-          const targetDayIndex = daysOfWeek.findIndex(day =>
-            day.toLowerCase() === dayOfWeek.toLowerCase()
-          );
-
-          if (targetDayIndex !== -1) {
-            const currentDayIndex = today.getDay();
-            let daysToAdd = targetDayIndex - currentDayIndex;
-            if (daysToAdd <= 0) daysToAdd += 7;
-
-            const interviewDateObj = new Date();
-            interviewDateObj.setDate(today.getDate() + daysToAdd);
-
-            interviewDate = interviewDateObj.toISOString().split('T')[0];
-            formattedDate = `${dayOfWeek}, ${interviewDateObj.toLocaleDateString('en-US', {
-              month: 'long', day: 'numeric'
-            })}`;
-          }
-        } else {
-          // Default to next Monday
-          const today = new Date();
-          const daysUntilMonday = (1 + 7 - today.getDay()) % 7 || 7;
-
-          const interviewDateObj = new Date();
-          interviewDateObj.setDate(today.getDate() + daysUntilMonday);
-
-          interviewDate = interviewDateObj.toISOString().split('T')[0];
-          formattedDate = `Monday, ${interviewDateObj.toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric'
-          })}`;
-        }
-
-        return {
-          interview_date: interviewDate,
-          formatted_date: formattedDate,
-          interview_time: timeOfDay
-        };
+        return extractDateTimeEntities(text);
 
       case "confirmation":
         return { confirmation: text };
@@ -357,12 +483,12 @@ const Conversation = () => {
   // Start interview
   const startConversation = async () => {
     if (!state.selectedCandidate) {
-      setState(prev => ({ ...prev, errorMessage: "Please select a candidate" }));
+      toast.error("Please select a candidate");
       return;
     }
 
     if (!state.selectedJob) {
-      setState(prev => ({ ...prev, errorMessage: "Please select a job" }));
+      toast.error("Please select a job");
       return;
     }
 
@@ -370,7 +496,7 @@ const Conversation = () => {
     setState(prev => ({ ...prev, errorMessage: "" }));
     stopEverything();
 
-    // Reset conversation state
+    // Reset and start loading
     setState(prev => ({
       ...prev,
       currentQuestionIndex: -1,
@@ -380,54 +506,62 @@ const Conversation = () => {
       logs: [],
       isListening: false,
       isSpeaking: false,
-      isLoading: true
+      isLoading: true,
+      availableTimeSlots: {},
+      suggestedAlternatives: [],
+      activeInterview: true  // Set to true immediately to show interview UI
     }));
 
     try {
       // Fetch candidate and job details
       const [candidateRes, jobRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/candidates/${state.selectedCandidate.id}`),
-        axios.get(`${API_BASE_URL}/jobs/${state.selectedJob.id}`)
+        api.get(`/candidates/${state.selectedCandidate.id}`),
+        api.get(`/jobs/${state.selectedJob.id}`)
       ]);
-
-      // Update state with profile and job info
+      
+      // Parse time slots from job
+      const timeSlots = parseTimeSlots(jobRes.data);
+      
+      // Update state with fetched data
+      const profile = candidateRes.data;
+      const jobTitle = jobRes.data.title;
+      
       setState(prev => ({
         ...prev,
-        profile: candidateRes.data,
-        jobTitle: jobRes.data.title,
+        profile,
+        jobTitle,
+        availableTimeSlots: timeSlots,
         isLoading: false,
-        activeInterview: true
+        currentQuestionIndex: 0  // Set question index right away
       }));
-
-      // Start greeting
+      
+      // Start the interview conversation immediately after state update
       setTimeout(() => {
-        const { profile, jobTitle } = state;
-        if (!profile || !jobTitle) return;
-
-        setState(prev => ({ ...prev, currentQuestionIndex: 0 }));
-
         const greeting = `Hello ${profile.name}, this is ${COMPANY} regarding a ${jobTitle} opportunity.`;
         speak(greeting, () => {
           speak(questions[0].question, startListening);
         });
-      }, 500);
+      }, 300);
+      
     } catch (err) {
       console.error("Failed to start interview:", err);
       setState(prev => ({
         ...prev,
         errorMessage: "Failed to load candidate or job information",
-        isLoading: false
+        isLoading: false,
+        activeInterview: false
       }));
+      toast.error("Failed to load candidate or job information");
     }
   };
 
   // Save collected data
   const saveData = async () => {
-    const { profile, answers, logs } = state;
+    const { profile, answers, logs, selectedJob } = state;
 
     try {
       // Update candidate information
-      await axios.put(`${API_BASE_URL}/candidates/${profile.id}`, {
+      await api.put(`/candidates/${profile.id}`, {
         current_ctc: answers.current_ctc,
         expected_ctc: answers.expected_ctc,
         notice_period: answers.notice_period
@@ -448,30 +582,26 @@ const Conversation = () => {
         confirmation: answers.confirmation || null
       });
 
-      await axios.post(`${API_BASE_URL}/conversations`, {
+      await api.post(`/conversations`, {
         candidate_id: profile.id,
         transcript: transcriptText,
         entities_extracted: entitiesExtracted
       });
-      console.log(answers);
 
-      await axios.post(`${API_BASE_URL}/appointments`, {
+      // Create appointment
+      await api.post(`/appointments`, {
         candidate_id: profile.id,
         job_id: selectedJob.id,
         date_time: `${answers.interview_date}T${convertTimeToISO(answers.interview_time)}`,
         status: 'confirmed'
       });
 
-
       // Show success message and reset
-      setState(prev => ({ ...prev, errorMessage: "" }));
-      setTimeout(() => {
-        toast.success('Interview information saved successfully!')
-        setState(prev => ({ ...prev, activeInterview: false }));
-      }, 1000);
+      toast.success('Interview information saved successfully!');
+      setState(prev => ({ ...prev, activeInterview: false }));
     } catch (err) {
       console.error("Failed to save data:", err);
-      setState(prev => ({ ...prev, errorMessage: "Failed to save interview information" }));
+      toast.error("Failed to save interview information");
     }
   };
 
@@ -479,7 +609,6 @@ const Conversation = () => {
   const cancelInterview = () => {
     if (window.confirm("Are you sure you want to cancel this interview?")) {
       stopEverything();
-
       setState(prev => ({
         ...prev,
         currentQuestionIndex: -1,
@@ -498,16 +627,12 @@ const Conversation = () => {
   const {
     currentQuestionIndex, profile, jobTitle, answers, logs,
     isListening, isSpeaking, candidates, selectedCandidate,
-    jobs, selectedJob, isLoading, activeInterview, errorMessage
+    jobs, selectedJob, isLoading, activeInterview
   } = state;
 
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Voice Interview Assistant</h2>
-
-      {errorMessage && (
-        toast.error(`${errorMessage}`)
-      )}
 
       {!activeInterview ? (
         <div className="grid md:grid-cols-2 gap-6">
@@ -667,7 +792,7 @@ const Conversation = () => {
 
               {logs.length === 0 ? (
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-6 text-center text-gray-500">
-                  The conversation will appear here...
+                  {isLoading ? "Loading..." : "The conversation will appear here..."}
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
@@ -763,7 +888,7 @@ const Conversation = () => {
           </div>
         </div>
       )}
-      <div><Toaster /></div>
+      <Toaster />
     </div>
   );
 };
